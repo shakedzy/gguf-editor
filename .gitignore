@@ -1,5 +1,9 @@
+.claude/*.local.*
+.DS_Store
+.env
+
 node_modules/
 out/
 dist/
-.DS_Store
+
 *.log

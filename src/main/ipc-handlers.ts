@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow, dialog } from 'electron'
 import {
   getCurrentFileInfo,
   openFileDialog,
@@ -7,9 +7,11 @@ import {
   addMetadataInMemory,
   deleteMetadataInMemory
 } from './file-manager'
-import { readTensorChunk, dequantizeTensorChunk, computeTensorStats } from './gguf/tensor-data'
+import { readTensorChunk, dequantizeTensorChunk, computeTensorStats, exportTensorRaw, exportTensorNumpy } from './gguf/tensor-data'
+import { getArchRegistry, refreshArchRegistry } from './arch-registry'
 import { writeGgufFile } from './gguf/writer'
 import { canDequantize } from './gguf/dequantize'
+import { GGML_TYPE_NAME } from './gguf/constants'
 
 function serializeFileInfo(info: any): any {
   return JSON.parse(
@@ -20,6 +22,10 @@ function serializeFileInfo(info: any): any {
 }
 
 export function registerIpcHandlers(): void {
+  ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:arch-registry', () => getArchRegistry())
+  ipcMain.handle('app:arch-registry-refresh', () => refreshArchRegistry())
+
   ipcMain.handle('gguf:open', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return null
@@ -53,7 +59,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     'gguf:dequantize-tensor',
-    (_event, tensorIndex: number, chunkOffset: number, count: number) => {
+    (_event, tensorIndex: number, chunkOffset: number, count: number, edits?: [number, number][]) => {
       const info = getCurrentFileInfo()
       if (!info || tensorIndex >= info.tensors.length) return null
       const tensor = info.tensors[tensorIndex]
@@ -62,7 +68,8 @@ export function registerIpcHandlers(): void {
         info.dataStartOffset,
         tensor,
         chunkOffset,
-        count
+        count,
+        edits
       )
       if (!floats) return null
       return floats.buffer.slice(
@@ -109,7 +116,62 @@ export function registerIpcHandlers(): void {
     return true
   })
 
-  ipcMain.handle('gguf:save', async (event, filePath?: string) => {
+  ipcMain.handle(
+    'gguf:export-tensor',
+    async (event, tensorIndex: number, format: 'raw' | 'npy') => {
+      const info = getCurrentFileInfo()
+      if (!info || tensorIndex >= info.tensors.length) {
+        return { success: false, error: 'No file or invalid tensor' }
+      }
+      const tensor = info.tensors[tensorIndex]
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window) return { success: false, error: 'No window' }
+
+      const typeName = GGML_TYPE_NAME[tensor.type] ?? 'unknown'
+      const safeName = tensor.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+
+      const ext = format === 'npy' ? 'npy' : 'bin'
+      const result = await dialog.showSaveDialog(window, {
+        title: `Export Tensor: ${tensor.name}`,
+        defaultPath: `${safeName}.${ext}`,
+        filters:
+          format === 'npy'
+            ? [{ name: 'NumPy Array', extensions: ['npy'] }]
+            : [
+                { name: 'Raw Binary', extensions: ['bin'] },
+                { name: 'All Files', extensions: ['*'] }
+              ]
+      })
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      try {
+        if (format === 'npy') {
+          const ok = exportTensorNumpy(
+            info.filePath,
+            info.dataStartOffset,
+            tensor,
+            result.filePath
+          )
+          if (!ok) return { success: false, error: `Cannot dequantize ${typeName} to float32` }
+        } else {
+          exportTensorRaw(
+            info.filePath,
+            info.dataStartOffset,
+            tensor,
+            result.filePath
+          )
+        }
+        return { success: true, filePath: result.filePath }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    }
+  )
+
+  ipcMain.handle('gguf:save', async (event, filePath?: string, byteEdits?: Record<number, [number, number][]>) => {
     const info = getCurrentFileInfo()
     if (!info) return { success: false, error: 'No file loaded' }
 
@@ -122,7 +184,10 @@ export function registerIpcHandlers(): void {
         if (!outPath) return { success: false, error: 'Cancelled' }
       }
 
-      await writeGgufFile(info, outPath)
+      const sender = event.sender
+      await writeGgufFile(info, outPath, byteEdits, (fraction) => {
+        sender.send('save:progress', fraction)
+      })
       return { success: true, filePath: outPath }
     } catch (err: any) {
       return { success: false, error: err.message }

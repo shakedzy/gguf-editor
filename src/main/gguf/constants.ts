@@ -1,6 +1,6 @@
 import { GgmlType } from './types'
 
-export const GGUF_MAGIC = 0x46555747 // "GGUF" in little-endian
+export const GGUF_MAGIC = 0x46554747 // "GGUF" in little-endian (bytes: 47 47 55 46)
 export const GGUF_HEADER_SIZE = 24
 export const GGUF_DEFAULT_ALIGNMENT = 32
 

@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="gFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="55%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#e879f9"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="url(#bg)"/>
+
+  <!-- Subtle inner glow -->
+  <circle cx="512" cy="512" r="380" fill="url(#glow)"/>
+
+  <!-- Greyed-out flow: stacked model-diagram blocks with connector arrows (mirrors the app's diagram) -->
+  <g stroke="#64748b" stroke-opacity="0.18" fill="#334155" fill-opacity="0.18">
+    <!-- Left column of blocks -->
+    <rect x="88"  y="156" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="88"  y="272" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="88"  y="388" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="88"  y="504" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="88"  y="620" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="88"  y="736" width="136" height="56" rx="10" stroke-width="2"/>
+    <!-- Right column of blocks -->
+    <rect x="800" y="156" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="800" y="272" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="800" y="388" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="800" y="504" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="800" y="620" width="136" height="56" rx="10" stroke-width="2"/>
+    <rect x="800" y="736" width="136" height="56" rx="10" stroke-width="2"/>
+  </g>
+
+  <!-- Faux accent dots on each block (the colored circle in the app's block header) -->
+  <g fill="#64748b" fill-opacity="0.28">
+    <circle cx="108"  cy="184" r="4"/><circle cx="108"  cy="300" r="4"/><circle cx="108"  cy="416" r="4"/>
+    <circle cx="108"  cy="532" r="4"/><circle cx="108"  cy="648" r="4"/><circle cx="108"  cy="764" r="4"/>
+    <circle cx="820" cy="184" r="4"/><circle cx="820" cy="300" r="4"/><circle cx="820" cy="416" r="4"/>
+    <circle cx="820" cy="532" r="4"/><circle cx="820" cy="648" r="4"/><circle cx="820" cy="764" r="4"/>
+  </g>
+
+  <!-- Connector arrows between blocks -->
+  <g stroke="#64748b" stroke-opacity="0.22" stroke-width="2" fill="#64748b" fill-opacity="0.22">
+    <!-- Left column connectors -->
+    <line x1="156" y1="212" x2="156" y2="268"/>
+    <polygon points="152,262 160,262 156,270"/>
+    <line x1="156" y1="328" x2="156" y2="384"/>
+    <polygon points="152,378 160,378 156,386"/>
+    <line x1="156" y1="444" x2="156" y2="500"/>
+    <polygon points="152,494 160,494 156,502"/>
+    <line x1="156" y1="560" x2="156" y2="616"/>
+    <polygon points="152,610 160,610 156,618"/>
+    <line x1="156" y1="676" x2="156" y2="732"/>
+    <polygon points="152,726 160,726 156,734"/>
+    <!-- Right column connectors -->
+    <line x1="868" y1="212" x2="868" y2="268"/>
+    <polygon points="864,262 872,262 868,270"/>
+    <line x1="868" y1="328" x2="868" y2="384"/>
+    <polygon points="864,378 872,378 868,386"/>
+    <line x1="868" y1="444" x2="868" y2="500"/>
+    <polygon points="864,494 872,494 868,502"/>
+    <line x1="868" y1="560" x2="868" y2="616"/>
+    <polygon points="864,610 872,610 868,618"/>
+    <line x1="868" y1="676" x2="868" y2="732"/>
+    <polygon points="864,726 872,726 868,734"/>
+  </g>
+
+  <!-- Modern "G": C-shape open on the right, with an inward crossbar at mid-height -->
+  <g fill="none" stroke="url(#gFill)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Upper terminal (top-right) sweeps CCW around the left to the lower terminal (bottom-right),
+         then the stroke turns up along the right side and cuts inward to form the crossbar -->
+    <path d="
+      M 712 340
+      A 240 240 0 1 0 712 684
+      L 712 532
+      L 548 532
+    "/>
+  </g>
+
+  <!-- Quantization strip: a clean row of blocks at the bottom hinting at tensor bytes -->
+  <g>
+    <rect x="320" y="872" width="56" height="56" rx="14" fill="#22d3ee" fill-opacity="0.95"/>
+    <rect x="384" y="872" width="56" height="56" rx="14" fill="#38bdf8" fill-opacity="0.9"/>
+    <rect x="448" y="872" width="56" height="56" rx="14" fill="#818cf8" fill-opacity="0.95"/>
+    <rect x="512" y="872" width="56" height="56" rx="14" fill="#a78bfa" fill-opacity="0.9"/>
+    <rect x="576" y="872" width="56" height="56" rx="14" fill="#c084fc" fill-opacity="0.95"/>
+    <rect x="640" y="872" width="56" height="56" rx="14" fill="#e879f9" fill-opacity="0.9"/>
+  </g>
+
+  <!-- Subtle border -->
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="none" stroke="url(#stroke)" stroke-width="6" stroke-opacity="0.6"/>
+</svg>

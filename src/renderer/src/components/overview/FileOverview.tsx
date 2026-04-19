@@ -1,5 +1,8 @@
 import { useFileStore } from '../../store/file-store'
 import { formatBytes, formatNumber, formatHex } from '../../lib/format'
+import { OVERVIEW_TOOLTIPS } from '../../lib/tooltips'
+import { getMetadataTooltip } from '../../lib/tooltips'
+import Tooltip from '../ui/Tooltip'
 
 export default function FileOverview() {
   const { fileInfo } = useFileStore()
@@ -55,19 +58,31 @@ export default function FileOverview() {
       <h2 className="text-xl font-bold text-gray-100">File Overview</h2>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        {cards.map(({ label, value }) => (
-          <div
-            key={label}
-            className="bg-gray-900 rounded-lg p-4 border border-gray-800"
-          >
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-              {label}
+        {cards.map(({ label, value }) => {
+          const tip = OVERVIEW_TOOLTIPS[label]
+          return (
+            <div
+              key={label}
+              className="bg-gray-900 rounded-lg p-4 border border-gray-800"
+            >
+              <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                {tip ? (
+                  <Tooltip text={tip}>
+                    <span className="border-b border-dotted border-gray-600">
+                      {label}
+                    </span>
+                    <span className="ml-1 text-gray-600">?</span>
+                  </Tooltip>
+                ) : (
+                  label
+                )}
+              </div>
+              <div className="text-sm font-medium text-gray-200 font-mono truncate">
+                {value}
+              </div>
             </div>
-            <div className="text-sm font-medium text-gray-200 font-mono truncate">
-              {value}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {archParams.length > 0 && (
@@ -88,19 +103,31 @@ export default function FileOverview() {
                 </tr>
               </thead>
               <tbody>
-                {archParams.map((kv) => (
-                  <tr
-                    key={kv.key}
-                    className="border-b border-gray-800/50 hover:bg-gray-800/30"
-                  >
-                    <td className="px-4 py-2 font-mono text-gray-400">
-                      {kv.key}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-gray-200">
-                      {String(kv.value)}
-                    </td>
-                  </tr>
-                ))}
+                {archParams.map((kv) => {
+                  const tip = getMetadataTooltip(kv.key)
+                  return (
+                    <tr
+                      key={kv.key}
+                      className="border-b border-gray-800/50 hover:bg-gray-800/30"
+                    >
+                      <td className="px-4 py-2 font-mono text-gray-400">
+                        {tip ? (
+                          <Tooltip text={tip}>
+                            <span className="border-b border-dotted border-gray-600">
+                              {kv.key}
+                            </span>
+                            <span className="ml-1 text-gray-600 text-xs">?</span>
+                          </Tooltip>
+                        ) : (
+                          kv.key
+                        )}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-gray-200">
+                        {String(kv.value)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

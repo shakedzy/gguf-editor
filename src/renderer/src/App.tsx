@@ -15,7 +15,8 @@ export default function App() {
 
     window.api.onMenuSave(async () => {
       if (!fileInfo) return
-      const result = await window.api.saveFile()
+      const edits = useFileStore.getState().byteEdits
+      const result = await window.api.saveFile(fileInfo.filePath, edits)
       if (result.success) {
         useFileStore.getState().markClean()
       }
@@ -23,7 +24,8 @@ export default function App() {
 
     window.api.onMenuSaveAs(async () => {
       if (!fileInfo) return
-      const result = await window.api.saveFile()
+      const edits = useFileStore.getState().byteEdits
+      const result = await window.api.saveFile(undefined, edits)
       if (result.success) {
         useFileStore.getState().markClean()
       }

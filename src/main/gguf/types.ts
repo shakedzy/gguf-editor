@@ -83,6 +83,7 @@ export interface GgufFileInfo {
   dataStartOffset: number
   fileSize: number
   filePath: string
+  displayName?: string
 }
 
 export interface TensorStats {

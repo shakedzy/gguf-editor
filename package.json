@@ -1,13 +1,17 @@
 {
-  "name": "gguf-editor",
-  "version": "1.0.0",
-  "description": "A desktop GGUF model file editor",
-  "main": "./out/main/index.js",
-  "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "package": "electron-builder"
+  "build": {
+    "appId": "com.gguf-editor",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns"
+    },
+    "productName": "GGUF Editor"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -16,6 +20,7 @@
     "react-dom": "^19.1.0",
     "zustand": "^5.0.5"
   },
+  "description": "A desktop GGUF model file editor",
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.4",
     "@types/react": "^19.1.2",
@@ -26,5 +31,14 @@
     "electron-vite": "^3.1.0",
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3"
-  }
+  },
+  "main": "./out/main/index.js",
+  "name": "gguf-editor",
+  "scripts": {
+    "build": "electron-vite build",
+    "dev": "electron-vite dev",
+    "package": "electron-builder",
+    "preview": "electron-vite preview"
+  },
+  "version": "0.1.0"
 }

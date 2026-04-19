@@ -1,3 +1,5 @@
+import * as fs from 'fs'
+import * as path from 'path'
 import { dialog, BrowserWindow } from 'electron'
 import { GgufFileInfo } from './gguf/types'
 import { parseGgufFile } from './gguf/parser'
@@ -48,19 +50,29 @@ export async function openFileDialog(
 ): Promise<GgufFileInfo | null> {
   const result = await dialog.showOpenDialog(window, {
     title: 'Open GGUF File',
-    filters: [
-      { name: 'GGUF Files', extensions: ['gguf'] },
-      { name: 'All Files', extensions: ['*'] }
-    ],
-    properties: ['openFile']
+    // No extension filter — macOS greys out symlinks (like HuggingFace cache files)
+    // when their target doesn't match the filter extension
+    properties: [
+      'openFile',
+      'treatPackageAsDirectory'
+    ]
   })
 
   if (result.canceled || result.filePaths.length === 0) return null
 
-  const filePath = result.filePaths[0]
-  const fileInfo = await parseGgufFile(filePath)
-  currentFileInfo = fileInfo
-  return fileInfo
+  const originalPath = result.filePaths[0]
+  const displayName = path.basename(originalPath)
+
+  try {
+    const fileInfo = await parseGgufFile(originalPath)
+    // Store the display-friendly name (original symlink name, not resolved blob hash)
+    fileInfo.displayName = displayName
+    currentFileInfo = fileInfo
+    return fileInfo
+  } catch (err: any) {
+    dialog.showErrorBox('Failed to open GGUF file', err.message || String(err))
+    return null
+  }
 }
 
 export async function saveFileDialog(

@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as path from 'path'
 import {
   GgufFileInfo,
   GgufMetadataKV,
@@ -165,9 +166,15 @@ function writeMetadataValue(
   }
 }
 
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
 export async function writeGgufFile(
   fileInfo: GgufFileInfo,
-  outputPath: string
+  outputPath: string,
+  byteEdits?: Record<number, [number, number][]>,
+  onProgress?: (fraction: number) => void
 ): Promise<void> {
   const writer = new BinaryWriter()
 
@@ -200,15 +207,36 @@ export async function writeGgufFile(
 
   const headerBuffer = writer.toBuffer()
 
-  // Write header, then stream tensor data from source file
-  const outFd = fs.openSync(outputPath, 'w')
+  // When saving to the same file, write to a temp file then rename
+  // to avoid truncating the source before we've finished reading it
+  const srcPath = fs.realpathSync(fileInfo.filePath)
+  const destPath = fs.realpathSync(path.dirname(outputPath)) + '/' + path.basename(outputPath)
+  const isSameFile = srcPath === destPath
+  const writePath = isSameFile
+    ? outputPath + '.tmp.' + Date.now()
+    : outputPath
+
+  const outFd = fs.openSync(writePath, 'w')
   try {
     fs.writeSync(outFd, headerBuffer, 0, headerBuffer.length, 0)
 
-    // Copy tensor data from source
+    // Build a map of absolute data-section offsets to apply byte edits
+    const editMap = new Map<number, number>()
+    if (byteEdits) {
+      for (const [tensorIdxStr, edits] of Object.entries(byteEdits)) {
+        const tensorIdx = Number(tensorIdxStr)
+        if (tensorIdx < 0 || tensorIdx >= fileInfo.tensors.length) continue
+        const tensor = fileInfo.tensors[tensorIdx]
+        for (const [byteOffset, value] of edits) {
+          editMap.set(tensor.offset + byteOffset, value)
+        }
+      }
+    }
+
+    // Copy tensor data from source, applying byte edits
     const srcFd = fs.openSync(fileInfo.filePath, 'r')
     try {
-      const copyChunkSize = 64 * 1024 // 64KB
+      const copyChunkSize = 4 * 1024 * 1024 // 4MB chunks
       const tensorDataSize = fileInfo.fileSize - fileInfo.dataStartOffset
       let copied = 0
       const copyBuf = Buffer.alloc(copyChunkSize)
@@ -223,13 +251,33 @@ export async function writeGgufFile(
           fileInfo.dataStartOffset + copied
         )
         if (bytesRead === 0) break
+
+        // Apply any byte edits that fall within this chunk
+        if (editMap.size > 0) {
+          for (const [absOff, value] of editMap) {
+            const bufIdx = absOff - copied
+            if (bufIdx >= 0 && bufIdx < bytesRead) {
+              copyBuf[bufIdx] = value
+            }
+          }
+        }
+
         fs.writeSync(outFd, copyBuf, 0, bytesRead, headerBuffer.length + copied)
         copied += bytesRead
+
+        // Report progress and yield to event loop so UI stays responsive
+        if (onProgress) onProgress(copied / tensorDataSize)
+        await yieldToEventLoop()
       }
     } finally {
       fs.closeSync(srcFd)
     }
   } finally {
     fs.closeSync(outFd)
+  }
+
+  // If we wrote to a temp file, replace the original
+  if (isSameFile) {
+    fs.renameSync(writePath, outputPath)
   }
 }

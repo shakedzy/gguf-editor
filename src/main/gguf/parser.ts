@@ -62,6 +62,8 @@ function readMetadataValue(
 }
 
 export async function parseGgufFile(filePath: string): Promise<GgufFileInfo> {
+  // Resolve symlinks (HuggingFace cache stores .gguf as symlinks to blobs)
+  filePath = fs.realpathSync(filePath)
   const fd = fs.openSync(filePath, 'r')
   try {
     const stat = fs.fstatSync(fd)

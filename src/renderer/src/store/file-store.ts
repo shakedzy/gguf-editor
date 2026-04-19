@@ -30,21 +30,32 @@ export interface GgufFileInfo {
   dataStartOffset: number
   fileSize: number
   filePath: string
+  displayName?: string
 }
 
-export type ActiveView = 'overview' | 'metadata' | 'tensors'
+export type ActiveView = 'overview' | 'metadata' | 'tensors' | 'diagram'
+
+// Byte-level edits per tensor: tensorIndex → Map<byteOffset, newValue>
+export type ByteEditsMap = Record<number, [number, number][]>
 
 interface FileStore {
   fileInfo: GgufFileInfo | null
   isDirty: boolean
   activeView: ActiveView
   selectedTensorIndex: number | null
+  diagramFocusTensor: string | null // tensor name to scroll to in diagram
+  byteEdits: ByteEditsMap // all pending byte edits across all tensors
+  saveVersion: number // increments on save — signals components to flush caches
 
   setFileInfo: (info: GgufFileInfo | null) => void
   setActiveView: (view: ActiveView) => void
   selectTensor: (index: number | null) => void
+  navigateToTensor: (index: number) => void
+  showTensorInDiagram: (tensorName: string) => void
+  clearDiagramFocus: () => void
   markDirty: () => void
   markClean: () => void
+  setByteEditsForTensor: (tensorIndex: number, edits: Map<number, number>) => void
   updateMetadata: (key: string, value: any, valueType: number) => void
   addMetadata: (key: string, value: any, valueType: number) => void
   deleteMetadata: (key: string) => void
@@ -55,16 +66,37 @@ export const useFileStore = create<FileStore>((set, get) => ({
   isDirty: false,
   activeView: 'overview',
   selectedTensorIndex: null,
+  diagramFocusTensor: null,
+  byteEdits: {},
+  saveVersion: 0,
 
   setFileInfo: (info) =>
-    set({ fileInfo: info, isDirty: false, selectedTensorIndex: null, activeView: 'overview' }),
+    set({ fileInfo: info, isDirty: false, selectedTensorIndex: null, diagramFocusTensor: null, activeView: 'overview', byteEdits: {}, saveVersion: 0 }),
 
   setActiveView: (view) => set({ activeView: view, selectedTensorIndex: null }),
 
   selectTensor: (index) => set({ selectedTensorIndex: index }),
 
+  navigateToTensor: (index) => set({ activeView: 'tensors', selectedTensorIndex: index }),
+
+  showTensorInDiagram: (tensorName) => set({ activeView: 'diagram', diagramFocusTensor: tensorName }),
+
+  clearDiagramFocus: () => set({ diagramFocusTensor: null }),
+
   markDirty: () => set({ isDirty: true }),
-  markClean: () => set({ isDirty: false }),
+  markClean: () => set((s) => ({ isDirty: false, byteEdits: {}, saveVersion: s.saveVersion + 1 })),
+
+  setByteEditsForTensor: (tensorIndex, edits) => {
+    const { byteEdits } = get()
+    const next = { ...byteEdits }
+    if (edits.size === 0) {
+      delete next[tensorIndex]
+    } else {
+      next[tensorIndex] = Array.from(edits.entries())
+    }
+    const hasAnyEdits = Object.keys(next).length > 0
+    set({ byteEdits: next, isDirty: hasAnyEdits || get().isDirty })
+  },
 
   updateMetadata: (key, value, valueType) => {
     const { fileInfo } = get()
