@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="build/banner.svg" alt="GGUF Editor" width="100%"/>
+</p>
+
 # GGUF Editor
 
 A desktop editor for [GGUF](https://github.com/ggerganov/ggml/blob/master/docs/gguf.md) model files — inspect metadata, browse tensors, view dequantized values, and make targeted edits.
