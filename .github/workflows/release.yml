@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -77,6 +78,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Setup JFrog Fly
+        uses: jfrog/fly-action@v1
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -99,6 +103,24 @@ jobs:
           name: ${{ steps.tag.outputs.name }}
           draft: true
           generate_release_notes: true
-          files: artifacts/*
+          # Uncomment to also attach the built binaries to the GitHub Release page.
+          # By default, binaries are stored only in JFrog Fly (see the upload step below);
+          # the GitHub Release keeps just the tag and auto-generated notes.
+          # files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts to JFrog Fly
+        uses: jfrog/fly-action/upload@v1
+        with:
+          name: gguf-editor
+          version: ${{ steps.tag.outputs.name }}
+          files: |
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/*.exe
+            artifacts/*.AppImage
+            artifacts/*.deb
+            artifacts/*.snap
+            artifacts/*.yml
+            artifacts/*.blockmap
