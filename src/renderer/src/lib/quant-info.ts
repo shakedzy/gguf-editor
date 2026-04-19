@@ -362,11 +362,11 @@ const FORMULAS: Record<number, StructuredFormula> = {
     variables: [
       { parts: [{ text: 'd', role: 'scale' }], desc: 'super-block scale (float16)' },
       { parts: [{ text: 'd', role: 'min', sub: 'min' }], desc: 'super-block min (float16)' },
-      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (6-bit)' },
-      { parts: [{ text: 'm', sub: 'j', role: 'submin' }], desc: 'sub-block min (6-bit)' },
+      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (6-bit, j \u2208 0..7)' },
+      { parts: [{ text: 'm', sub: 'j', role: 'submin' }], desc: 'sub-block min (6-bit, j \u2208 0..7)' },
       { parts: [{ text: 'q', sub: 'i', role: 'quants' }], desc: '4-bit nibble, 0\u201315' }
     ],
-    note: '8 sub-blocks of 32 weights each'
+    note: '8 sub-blocks of 32 weights. All 8 scales + 8 mins are packed into 12 bytes (sub-scales + sub-mins + overflow).'
   },
   // Q5_K
   13: {
@@ -381,12 +381,12 @@ const FORMULAS: Record<number, StructuredFormula> = {
     variables: [
       { parts: [{ text: 'd', role: 'scale' }], desc: 'super-block scale (float16)' },
       { parts: [{ text: 'd', role: 'min', sub: 'min' }], desc: 'super-block min (float16)' },
-      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (6-bit)' },
-      { parts: [{ text: 'm', sub: 'j', role: 'submin' }], desc: 'sub-block min (6-bit)' },
+      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (6-bit, j \u2208 0..7)' },
+      { parts: [{ text: 'm', sub: 'j', role: 'submin' }], desc: 'sub-block min (6-bit, j \u2208 0..7)' },
       { parts: [{ text: 'q5', sub: 'i', role: 'quants' }], desc: 'low4 | (high_bit << 4), 0\u201331' },
       { parts: [{ text: 'high_bit', role: 'highbits' }], desc: '5th bit from 32-byte mask' }
     ],
-    note: '8 sub-blocks of 32 weights each'
+    note: '8 sub-blocks of 32 weights. All 8 scales + 8 mins are packed into 12 bytes (sub-scales + sub-mins + overflow).'
   },
   // Q6_K
   14: {
@@ -394,15 +394,19 @@ const FORMULAS: Record<number, StructuredFormula> = {
       { text: 'w', sub: 'i' }, { text: ' = ' },
       { text: 'd', role: 'scale' }, { text: ' \u00d7 ' },
       { text: 'sc', sub: 'j', role: 'subscale' }, { text: ' \u00d7 (' },
-      { text: 'q6', sub: 'i', role: 'quants' }, { text: ' \u2212 32)' }
+      { text: 'q6', sub: 'i', role: 'quants' }, { text: ' \u2212 32),   where   ' },
+      { text: 'q6', sub: 'i', role: 'quants' }, { text: ' = ' },
+      { text: 'qh', sub: 'i', role: 'highbits' }, { text: ' \u00d7 16 + ' },
+      { text: 'ql', sub: 'i', role: 'quants' }
     ],
     variables: [
       { parts: [{ text: 'd', role: 'scale' }], desc: 'super-block scale (float16, at end of block)' },
-      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (int8)' },
-      { parts: [{ text: 'q6', sub: 'i', role: 'quants' }], desc: 'low4 | (high2 << 4), 0\u201363' },
-      { parts: [{ text: 'high2', role: 'highbits' }], desc: 'upper 2 bits from 64-byte field' }
+      { parts: [{ text: 'sc', sub: 'j', role: 'subscale' }], desc: 'sub-block scale (int8, 1 byte per 16-weight sub-block)' },
+      { parts: [{ text: 'ql', sub: 'i', role: 'quants' }], desc: 'low 4 bits of weight i, 2 weights/byte (128-byte field)' },
+      { parts: [{ text: 'qh', sub: 'i', role: 'highbits' }], desc: 'high 2 bits of weight i, 4 weights/byte (64-byte field)' },
+      { parts: [{ text: 'q6', sub: 'i', role: 'quants' }], desc: 'reconstructed 6-bit unsigned quant, 0\u201363' }
     ],
-    note: '16 sub-blocks of 16 weights each'
+    note: '16 sub-blocks of 16 weights each. \u00d716 is the high-bit shift (2^4).'
   },
   // Q8_K
   15: {

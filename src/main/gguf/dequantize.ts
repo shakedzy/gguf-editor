@@ -272,6 +272,7 @@ function dequantizeQ6_K(buf: Buffer): Float32Array {
     // Process in two halves of 128 weights each
     for (let n = 0; n < QK_K; n += 128) {
       for (let l = 0; l < 32; l++) {
+        const is = l >> 4
         const ql0 = buf[qlBase + qlOff + l]
         const ql1 = buf[qlBase + qlOff + l + 32]
         const qhVal = buf[qhBase + qhOff + l]
@@ -281,10 +282,10 @@ function dequantizeQ6_K(buf: Buffer): Float32Array {
         const q3 = ((ql0 >> 4) | (((qhVal >> 4) & 3) << 4)) - 32
         const q4 = ((ql1 >> 4) | (((qhVal >> 6) & 3) << 4)) - 32
 
-        result[outIdx + l + 0] = d * buf.readInt8(scBase + scOff + 0) * q1
-        result[outIdx + l + 32] = d * buf.readInt8(scBase + scOff + 2) * q2
-        result[outIdx + l + 64] = d * buf.readInt8(scBase + scOff + 4) * q3
-        result[outIdx + l + 96] = d * buf.readInt8(scBase + scOff + 6) * q4
+        result[outIdx + l + 0] = d * buf.readInt8(scBase + scOff + is + 0) * q1
+        result[outIdx + l + 32] = d * buf.readInt8(scBase + scOff + is + 2) * q2
+        result[outIdx + l + 64] = d * buf.readInt8(scBase + scOff + is + 4) * q3
+        result[outIdx + l + 96] = d * buf.readInt8(scBase + scOff + is + 6) * q4
       }
 
       qlOff += 64

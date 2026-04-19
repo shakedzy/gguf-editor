@@ -2,6 +2,7 @@ import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getHexExplanation, getStructuredFormula, FormulaPart } from '../../lib/quant-info'
 import { GGML_TYPE_NAME } from '../../lib/tensor-types'
+import { BLOCK_DEFS, BlockDef } from '../../lib/block-layout'
 import { useFileStore } from '../../store/file-store'
 
 interface Props {
@@ -22,181 +23,6 @@ const MID_DIV_WIDTH = 9
 const SEP_WIDTH = 3
 const PADDING = 24
 
-// ── Block structure for coloring + separators ────────────────────────
-
-interface BlockDef {
-  blockBytes: number
-  weightsPerBlock: number
-  segments: { start: number; len: number; role: string }[]
-}
-
-const BLOCK_DEFS: Record<number, BlockDef> = {
-  // ── Unquantized ────────────────────────────────────────────────────
-  0:  { blockBytes: 4, weightsPerBlock: 1, segments: [{ start: 0, len: 4, role: 'value' }] },   // F32
-  1:  { blockBytes: 2, weightsPerBlock: 1, segments: [{ start: 0, len: 2, role: 'value' }] },   // F16
-  30: { blockBytes: 2, weightsPerBlock: 1, segments: [{ start: 0, len: 2, role: 'value' }] },   // BF16
-
-  // ── Simple quants (32 weights/block) ───────────────────────────────
-  2: { // Q4_0: d(2B) + qs(16B)
-    blockBytes: 18, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 16, role: 'quants' }]
-  },
-  3: { // Q4_1: d(2B) + m(2B) + qs(16B)
-    blockBytes: 20, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 2, role: 'min' }, { start: 4, len: 16, role: 'quants' }]
-  },
-  6: { // Q5_0: d(2B) + qh(4B) + qs(16B)
-    blockBytes: 22, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 4, role: 'highbits' }, { start: 6, len: 16, role: 'quants' }]
-  },
-  7: { // Q5_1: d(2B) + m(2B) + qh(4B) + qs(16B)
-    blockBytes: 24, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 2, role: 'min' }, { start: 4, len: 4, role: 'highbits' }, { start: 8, len: 16, role: 'quants' }]
-  },
-  8: { // Q8_0: d(2B) + qs(32B)
-    blockBytes: 34, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 32, role: 'quants' }]
-  },
-  9: { // Q8_1: d(2B) + sum(2B) + qs(32B)
-    blockBytes: 36, weightsPerBlock: 32,
-    segments: [{ start: 0, len: 2, role: 'scale' }, { start: 2, len: 2, role: 'sum' }, { start: 4, len: 32, role: 'quants' }]
-  },
-
-  // ── K-quants (256 weights/block) ───────────────────────────────────
-  10: { // Q2_K: subscales(16B) + qs(64B) + d(2B) + dmin(2B)
-    blockBytes: 84, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 16, role: 'subscale' },
-      { start: 16, len: 64, role: 'quants' },
-      { start: 80, len: 2, role: 'scale' },
-      { start: 82, len: 2, role: 'min' }
-    ]
-  },
-  11: { // Q3_K: hmask(32B) + qs(64B) + subscales(12B) + d(2B)
-    blockBytes: 110, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 32, role: 'highbits' },
-      { start: 32, len: 64, role: 'quants' },
-      { start: 96, len: 12, role: 'subscale' },
-      { start: 108, len: 2, role: 'scale' }
-    ]
-  },
-  12: { // Q4_K: d(2B) + dmin(2B) + subscales(4B) + submins(4B) + overflow(4B) + qs(128B)
-    blockBytes: 144, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 2, role: 'min' },
-      { start: 4, len: 4, role: 'subscale' },
-      { start: 8, len: 4, role: 'submin' },
-      { start: 12, len: 4, role: 'submixed' },
-      { start: 16, len: 128, role: 'quants' }
-    ]
-  },
-  13: { // Q5_K: d(2B) + dmin(2B) + subscales(4B) + submins(4B) + overflow(4B) + qh(32B) + qs(128B)
-    blockBytes: 176, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 2, role: 'min' },
-      { start: 4, len: 4, role: 'subscale' },
-      { start: 8, len: 4, role: 'submin' },
-      { start: 12, len: 4, role: 'submixed' },
-      { start: 16, len: 32, role: 'highbits' },
-      { start: 48, len: 128, role: 'quants' }
-    ]
-  },
-  14: { // Q6_K: ql(128B) + qh(64B) + subscales(16B) + d(2B)
-    blockBytes: 210, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 128, role: 'quants' },
-      { start: 128, len: 64, role: 'highbits' },
-      { start: 192, len: 16, role: 'subscale' },
-      { start: 208, len: 2, role: 'scale' }
-    ]
-  },
-  15: { // Q8_K: d(4B float32) + qs(256B) + bsums(32B)
-    blockBytes: 292, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 4, role: 'scale' },
-      { start: 4, len: 256, role: 'quants' },
-      { start: 260, len: 32, role: 'sum' }
-    ]
-  },
-
-  // ── IQ types (importance-matrix quants) ────────────────────────────
-  16: { // IQ2_XXS: d(2B) + qs(64B)
-    blockBytes: 66, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 64, role: 'quants' }
-    ]
-  },
-  17: { // IQ2_XS: d(2B) + qs(64B) + subscales(8B)
-    blockBytes: 74, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 64, role: 'quants' },
-      { start: 66, len: 8, role: 'subscale' }
-    ]
-  },
-  18: { // IQ3_XXS: d(2B) + qs(96B)
-    blockBytes: 98, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 96, role: 'quants' }
-    ]
-  },
-  19: { // IQ1_S: d(2B) + qs(32B) + qh(16B)
-    blockBytes: 50, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 32, role: 'quants' },
-      { start: 34, len: 16, role: 'highbits' }
-    ]
-  },
-  20: { // IQ4_NL: d(2B) + qs(16B) — non-linear 4-bit, same layout as Q4_0
-    blockBytes: 18, weightsPerBlock: 32,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 16, role: 'quants' }
-    ]
-  },
-  21: { // IQ3_S: d(2B) + qs(64B) + qh(8B) + signs(32B) + subscales(4B)
-    blockBytes: 110, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 64, role: 'quants' },
-      { start: 66, len: 8, role: 'highbits' },
-      { start: 74, len: 32, role: 'signs' },
-      { start: 106, len: 4, role: 'subscale' }
-    ]
-  },
-  22: { // IQ2_S: d(2B) + qs(64B) + qh(8B) + subscales(8B)
-    blockBytes: 82, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 64, role: 'quants' },
-      { start: 66, len: 8, role: 'highbits' },
-      { start: 74, len: 8, role: 'subscale' }
-    ]
-  },
-  23: { // IQ4_XS: d(2B) + scales(6B) + qs(128B)
-    blockBytes: 136, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 2, role: 'scale' },
-      { start: 2, len: 6, role: 'subscale' },
-      { start: 8, len: 128, role: 'quants' }
-    ]
-  },
-  24: { // IQ1_M: qs(32B) + qh(16B) + scales(8B) — no separate d field
-    blockBytes: 56, weightsPerBlock: 256,
-    segments: [
-      { start: 0, len: 32, role: 'quants' },
-      { start: 32, len: 16, role: 'highbits' },
-      { start: 48, len: 8, role: 'subscale' }
-    ]
-  }
-}
-
 const ROLE_COLOR: Record<string, string> = {
   scale: 'text-cyan-400',
   min: 'text-pink-400',
@@ -214,9 +40,9 @@ const LEGEND_LABELS: Record<string, string> = {
   scale: 'Scale (d)',
   min: 'Min (dmin)',
   sum: 'Sum',
-  subscale: 'Sub-block scales',
-  submin: 'Sub-block mins',
-  submixed: 'Sub-block scale+min overflow',
+  subscale: 'Sub-block scales (8 × 6-bit, packed)',
+  submin: 'Sub-block mins (8 × 6-bit, packed)',
+  submixed: 'Sub-blocks 4–7 scale+min low bits',
   highbits: 'High bits',
   signs: 'Sign bits',
   quants: 'Quantized values',
@@ -243,6 +69,12 @@ function isValueBoundary(absoluteOffset: number, def: BlockDef): boolean {
 
 function isBlockBoundary(absoluteOffset: number, def: BlockDef): boolean {
   return absoluteOffset > 0 && absoluteOffset % def.blockBytes === 0
+}
+
+function isSubBlockBoundary(absoluteOffset: number, def: BlockDef): boolean {
+  if (!def.subBlockBoundaries || absoluteOffset === 0) return false
+  const posInBlock = absoluteOffset % def.blockBytes
+  return def.subBlockBoundaries.includes(posInBlock)
 }
 
 // ── Component ────────────────────────────────────────────────────────
@@ -579,10 +411,12 @@ export default function HexEditor({ tensorIndex, sizeBytes, tensorType, pendingE
                     const role = blockDef ? getRoleForByte(off, blockDef) : null
                     const color = singleRole ? 'text-gray-300' : role ? ROLE_COLOR[role] : 'text-gray-300'
 
-                    // Only two separator types: block boundaries and value boundaries
+                    // Three separator types: block boundaries, value boundaries, and
+                    // sub-block boundaries (between logical sub-blocks inside a k-quant).
                     const showBlockSep = blockDef && isBlockBoundary(off, blockDef)
                     const showValSep = blockDef && !showBlockSep && isValueBoundary(off, blockDef)
-                    const anySep = showBlockSep || showValSep
+                    const showSubBlockSep = blockDef && !showBlockSep && !showValSep && isSubBlockBoundary(off, blockDef)
+                    const anySep = showBlockSep || showValSep || showSubBlockSep
 
                     // For value separators: also show at start of row if the
                     // previous row's last byte ended mid-value
@@ -617,6 +451,13 @@ export default function HexEditor({ tensorIndex, sizeBytes, tensorType, pendingE
                             <span className="w-px h-3 bg-gray-600 shrink-0" />
                           </span>
                         )}
+                        {/* Sub-block boundary at a group-div slot: thin line inside the pre-existing 9px gap */}
+                        {isGroupDiv && showSubBlockSep && (
+                          <span className="w-[9px] flex justify-center shrink-0">
+                            <span className="w-px h-3 bg-gray-700 shrink-0" />
+                          </span>
+                        )}
+                        {/* Sub-block boundary inside a row: draw as a left border on the byte cell so spacing stays aligned with the header. */}
                         {editingOffset === off ? (
                           <input
                             type="text"
@@ -634,6 +475,7 @@ export default function HexEditor({ tensorIndex, sizeBytes, tensorType, pendingE
                         ) : (
                           <span
                             className={`w-[21px] text-center rounded-sm cursor-pointer hover:bg-white/10 shrink-0
+                              ${!isGroupDiv && showSubBlockSep ? 'border-l border-gray-700' : ''}
                               ${edited ? `${color} bg-red-700/30 ring-1 ring-red-500/40` : byte !== null ? color : 'text-gray-700'}`}
                             onClick={() => byte !== null && handleByteClick(off)}
                           >

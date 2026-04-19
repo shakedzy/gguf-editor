@@ -4,6 +4,7 @@ import { GgufTensorInfo } from '../../store/file-store'
 import { formatFloat } from '../../lib/format'
 import { getFloatExplanation, getQuantExplanation } from '../../lib/quant-info'
 import { GGML_TYPE_NAME } from '../../lib/tensor-types'
+import { BLOCK_DEFS, affectedWeightsInBlock } from '../../lib/block-layout'
 
 interface Props {
   tensorIndex: number
@@ -34,30 +35,15 @@ function formatNdIndex(flatIdx: number, dims: number[]): string {
 }
 const PAGE_FLOATS = 8192 // Floats per page fetched from main process
 
-// We need to know byte size per float to compute byte offsets for pagination.
-// For block-quantized types, we fetch by block-aligned byte chunks.
-const QUANT_BLOCK: Record<number, { blockBytes: number; weightsPerBlock: number }> = {
-  0: { blockBytes: 4, weightsPerBlock: 1 },
-  1: { blockBytes: 2, weightsPerBlock: 1 },
-  2: { blockBytes: 18, weightsPerBlock: 32 },
-  3: { blockBytes: 20, weightsPerBlock: 32 },
-  6: { blockBytes: 22, weightsPerBlock: 32 },
-  7: { blockBytes: 24, weightsPerBlock: 32 },
-  8: { blockBytes: 34, weightsPerBlock: 32 },
-  9: { blockBytes: 36, weightsPerBlock: 32 },
-  12: { blockBytes: 144, weightsPerBlock: 256 },
-  14: { blockBytes: 210, weightsPerBlock: 256 }
-}
-
 function floatOffsetToByteOffset(floatIdx: number, type: number): number {
-  const info = QUANT_BLOCK[type]
+  const info = BLOCK_DEFS[type]
   if (!info) return 0
   const blockIdx = Math.floor(floatIdx / info.weightsPerBlock)
   return blockIdx * info.blockBytes
 }
 
 function floatCountToByteLen(floatCount: number, type: number): number {
-  const info = QUANT_BLOCK[type]
+  const info = BLOCK_DEFS[type]
   if (!info) return 0
   const blocks = Math.ceil(floatCount / info.weightsPerBlock)
   return blocks * info.blockBytes
@@ -90,17 +76,29 @@ export default function DequantizedView({ tensorIndex, tensor, pendingEdits }: P
   const totalElements = tensor.dims.reduce((a, b) => a * b, 1)
   const totalRows = Math.ceil(totalElements / valuesPerRow)
 
-  // Compute which float indices are affected by pending byte edits
+  // Compute which float indices are affected by pending byte edits.
+  // A single qs byte in a 256-weight block only affects a handful of weights,
+  // not the whole block — so we consult affectedWeightsInBlock for an exact
+  // mapping based on each edited byte's offset within its block.
   const affectedFloats = useMemo(() => {
     if (!pendingEdits || pendingEdits.size === 0) return null
-    const info = QUANT_BLOCK[tensor.type]
+    const info = BLOCK_DEFS[tensor.type]
     if (!info) return null
     const affected = new Set<number>()
     for (const byteOff of pendingEdits.keys()) {
       const blockIdx = Math.floor(byteOff / info.blockBytes)
+      const byteInBlock = byteOff - blockIdx * info.blockBytes
       const floatStart = blockIdx * info.weightsPerBlock
-      const floatEnd = Math.min(floatStart + info.weightsPerBlock, totalElements)
-      for (let f = floatStart; f < floatEnd; f++) affected.add(f)
+      const localWeights = affectedWeightsInBlock(tensor.type, byteInBlock)
+      if (localWeights === null) {
+        const floatEnd = Math.min(floatStart + info.weightsPerBlock, totalElements)
+        for (let f = floatStart; f < floatEnd; f++) affected.add(f)
+      } else {
+        for (const w of localWeights) {
+          const f = floatStart + w
+          if (f < totalElements) affected.add(f)
+        }
+      }
     }
     return affected
   }, [pendingEdits, tensor.type, totalElements])
