@@ -26,13 +26,28 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
+
+      - name: Verify package.json version matches tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "v${PKG_VER}" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match package.json version $PKG_VER. Run 'npm version <x.y.z>' before tagging."
+            exit 1
+          fi
+          echo "Tag $TAG matches package.json version $PKG_VER"
 
       - name: Install dependencies
         run: npm ci
@@ -59,7 +74,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gguf-editor-${{ matrix.os }}
           path: |
@@ -82,7 +97,7 @@ jobs:
         uses: jfrog/fly-action@v1
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -115,12 +130,4 @@ jobs:
         with:
           name: gguf-editor
           version: ${{ steps.tag.outputs.name }}
-          files: |
-            artifacts/*.dmg
-            artifacts/*.zip
-            artifacts/*.exe
-            artifacts/*.AppImage
-            artifacts/*.deb
-            artifacts/*.snap
-            artifacts/*.yml
-            artifacts/*.blockmap
+          files: artifacts/*
