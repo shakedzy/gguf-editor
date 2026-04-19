@@ -1,4 +1,4 @@
-.claude/*.local.*
+.claude/
 .DS_Store
 .env
 
