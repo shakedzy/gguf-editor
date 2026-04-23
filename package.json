@@ -40,5 +40,5 @@
     "package": "electron-builder",
     "preview": "electron-vite preview"
   },
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
