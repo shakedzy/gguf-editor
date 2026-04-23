@@ -118,10 +118,10 @@ jobs:
           name: ${{ steps.tag.outputs.name }}
           draft: true
           generate_release_notes: true
-          # Uncomment to also attach the built binaries to the GitHub Release page.
-          # By default, binaries are stored only in JFrog Fly (see the upload step below);
+          # Comment the line below to dettach the built binaries from the GitHub Release page.
+          # When commented-out, binaries are stored only in JFrog Fly (see the upload step below);
           # the GitHub Release keeps just the tag and auto-generated notes.
-          # files: artifacts/*
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
