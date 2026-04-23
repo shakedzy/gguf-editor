@@ -5,7 +5,8 @@ import { GGML_TYPE_NAME, getTypeBadgeColor } from '../../lib/tensor-types'
 import HexEditor from '../hex-editor/HexEditor'
 import DequantizedView from '../tensor-view/DequantizedView'
 import TensorStats from '../tensor-view/TensorStats'
-type Tab = 'hex' | 'floats' | 'stats'
+import QuantReference from '../tensor-view/QuantReference'
+type Tab = 'hex' | 'floats' | 'stats' | 'reference'
 
 export default function TensorDetail() {
   const { fileInfo, selectedTensorIndex, selectTensor, saveVersion } = useFileStore()
@@ -69,7 +70,8 @@ export default function TensorDetail() {
   const tabs: { id: Tab; label: string; disabled?: boolean }[] = [
     { id: 'hex', label: 'Hex View' },
     { id: 'floats', label: 'Float Values', disabled: !canDeq },
-    { id: 'stats', label: 'Statistics', disabled: !canDeq }
+    { id: 'stats', label: 'Statistics', disabled: !canDeq },
+    { id: 'reference', label: 'Reference' }
   ]
 
   return (
@@ -180,6 +182,7 @@ export default function TensorDetail() {
         {activeTab === 'stats' && canDeq && (
           <TensorStats tensorIndex={selectedTensorIndex} />
         )}
+        {activeTab === 'reference' && <QuantReference type={tensor.type} />}
       </div>
     </div>
   )
