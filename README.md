@@ -18,6 +18,16 @@ Built with Electron, React, TypeScript, and Tailwind CSS.
 - File overview with architecture-aware summaries
 - Save edits in place or export a copy
 
+## Installing on macOS
+
+The Mac builds are not notarized with an Apple Developer ID, so on first launch macOS will block the app with *"Apple could not verify 'GGUF Editor' is free of malware…"*. After moving the app to `/Applications`, run:
+
+```bash
+xattr -cr "/Applications/GGUF Editor.app"
+```
+
+Then open the app normally. This only needs to be done once per install.
+
 ## Project structure
 
 ```
