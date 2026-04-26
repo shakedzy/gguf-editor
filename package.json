@@ -1,6 +1,7 @@
 {
   "build": {
     "appId": "com.gguf-editor",
+    "afterPack": "./build/afterPack.js",
     "directories": {
       "output": "dist"
     },
@@ -41,5 +42,5 @@
     "package": "electron-builder",
     "preview": "electron-vite preview"
   },
-  "version": "0.1.1"
+  "version": "0.1.2"
 }
